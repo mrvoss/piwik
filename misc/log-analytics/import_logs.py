@@ -25,6 +25,7 @@ import os
 import os.path
 import Queue
 import re
+import socket
 import sys
 import threading
 import time
@@ -1444,6 +1445,18 @@ class Parser(object):
                 hit.user_agent = ''
 
             hit.ip = match.group('ip')
+            # reverse logresolve hostnames to ips
+            # http://unix.stackexchange.com/questions/20784/how-can-i-resolve-a-hostname-to-an-ip-address-in-a-bash-script/47914#47914
+            # XXX make the lookup config'able via cmd line option
+            # XXX cache lookup results, decrease timeout
+            try:
+                ip = socket.gethostbyname(hit.ip)
+                if ip != '0.0.0.0':
+                    hit.ip = ip
+            except (socket.error, socket.herror, socket.gaierror):
+                # just keep the hostname and put latter into location_ip - we might be able to resolve it later
+                pass
+            # XXX timeout, ...
             try:
                 hit.length = int(match.group('length'))
             except (ValueError, IndexError):
