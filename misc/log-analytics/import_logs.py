@@ -1165,6 +1165,15 @@ class Recorder(object):
             )
         if hit.generation_time_milli > 0:
             args['gt_ms'] = hit.generation_time_milli
+
+        # merge hostnames into args['_cvar']
+        try:
+            _cvar = json.loads(args['_cvar'])
+        except:
+            _cvar = {}
+        _cvar[u'2'] = [u'Hostname', hit.hostname]
+        args['_cvar'] = json.dumps(_cvar, ensure_ascii=False, sort_keys=False, separators=(',', ':'))
+
         return args
 
     def _record_hits(self, hits):
@@ -1449,14 +1458,19 @@ class Parser(object):
             # http://unix.stackexchange.com/questions/20784/how-can-i-resolve-a-hostname-to-an-ip-address-in-a-bash-script/47914#47914
             # XXX make the lookup config'able via cmd line option
             # XXX cache lookup results, decrease timeout
+            hit.hostname = hit.ip
             try:
-                ip = socket.gethostbyname(hit.ip)
-                if ip != '0.0.0.0':
-                    hit.ip = ip
+                hit.ip = socket.gethostbyname(hit.ip)
+                # the following doesn't help, because passed ip is converted to location_ip by Piwik_IP::P2N(), which converts hostnames to 0.0.0.0
+                #if ip != '0.0.0.0':
+                #    hit.ip = ip
+                #if ip != hit.ip:    # hit.ip was a hostname
+                    # pass the hostname via custom var so we can distinguish hosts w/ ip 0.0.0.0
+                    # '_cvar': "visit scope", written to piwik_log_visit table (vs. 'cvar', written to piwik_log_link_visit_action table)
+                    # _cvar 1: Bot/Not-Bot
+                    #hit.args['_cvar'] = '{"2":["Hostname","%s"]}' % hit.ip  # will be overwritten by bot stuff (because of the '='
             except (socket.error, socket.herror, socket.gaierror):
-                # just keep the hostname and put latter into location_ip - we might be able to resolve it later
                 pass
-            # XXX timeout, ...
             try:
                 hit.length = int(match.group('length'))
             except (ValueError, IndexError):
