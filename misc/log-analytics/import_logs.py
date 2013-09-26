@@ -1454,23 +1454,18 @@ class Parser(object):
                 hit.user_agent = ''
 
             hit.ip = match.group('ip')
-            # reverse logresolve hostnames to ips
-            # http://unix.stackexchange.com/questions/20784/how-can-i-resolve-a-hostname-to-an-ip-address-in-a-bash-script/47914#47914
-            # XXX make the lookup config'able via cmd line option
-            # XXX cache lookup results, decrease timeout
-            hit.hostname = hit.ip
+            # hit.ip can be hostname (after successful logresolve) or ip (after unsuccessful or without logresolve)
             try:
-                hit.ip = socket.gethostbyname(hit.ip)
-                # the following doesn't help, because passed ip is converted to location_ip by Piwik_IP::P2N(), which converts hostnames to 0.0.0.0
-                #if ip != '0.0.0.0':
-                #    hit.ip = ip
-                #if ip != hit.ip:    # hit.ip was a hostname
-                    # pass the hostname via custom var so we can distinguish hosts w/ ip 0.0.0.0
-                    # '_cvar': "visit scope", written to piwik_log_visit table (vs. 'cvar', written to piwik_log_link_visit_action table)
-                    # _cvar 1: Bot/Not-Bot
-                    #hit.args['_cvar'] = '{"2":["Hostname","%s"]}' % hit.ip  # will be overwritten by bot stuff (because of the '='
-            except (socket.error, socket.herror, socket.gaierror):
-                pass
+                ip = socket.gethostbyname(hit.ip)   # if hit.ip is ip address, it is returned unchanged
+            except (socket.error, socket.herror, socket.gaierror), e:
+                #logging.debug('socket.gethostbyname(%s): %s', hit.ip, e)   # too many - better check in piwik, or XXX only log once per ip
+                ip = ''
+            if ip != hit.ip:    # hit.ip is a hostname
+                hit.hostname = hit.ip
+                hit.ip = ip
+            else:
+                #hit.hostname = socket.gethostbyaddr(hit.ip)    # let this do logresolve
+                hit.hostname = ''
             try:
                 hit.length = int(match.group('length'))
             except (ValueError, IndexError):
