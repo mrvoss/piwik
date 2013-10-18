@@ -1407,6 +1407,7 @@ class Parser(object):
         resolver.check_format(format)
 
         hits = []
+        gethostbyname_cache = {}
         for lineno, line in enumerate(file):
             try:
                 line = line.decode(config.options.encoding)
@@ -1455,11 +1456,15 @@ class Parser(object):
 
             hit.ip = match.group('ip')
             # hit.ip can be hostname (after successful logresolve) or ip (after unsuccessful or without logresolve)
-            try:
-                ip = socket.gethostbyname(hit.ip)   # if hit.ip is ip address, it is returned unchanged
-            except (socket.error, socket.herror, socket.gaierror), e:
-                #logging.debug('socket.gethostbyname(%s): %s', hit.ip, e)   # too many - better check in piwik, or XXX only log once per ip
-                ip = ''
+            if hit.ip in gethostbyname_cache:
+                ip = gethostbyname_cache[hit.ip]
+            else:
+                try:
+                    ip = socket.gethostbyname(hit.ip)   # if hit.ip is ip address, it is returned unchanged
+                except (socket.error, socket.herror, socket.gaierror), e:
+                    #logging.debug('socket.gethostbyname(%s): %s', hit.ip, e)   # too many - better check in piwik, or XXX only log once per ip
+                    ip = ''
+                gethostbyname_cache[hit.ip] = ip    # XXX for failed lookups, try again after a while instead of saving nil?
             if ip != hit.ip:    # hit.ip is a hostname
                 hit.hostname = hit.ip
                 hit.ip = ip
